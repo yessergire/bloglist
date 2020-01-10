@@ -2,65 +2,66 @@ const bcrypt = require('bcrypt')
 const usersRouter = require('express').Router()
 const User = require('../models/user')
 
-usersRouter.get('/', async (req, res) => {
-  const fields = {
-    likes: 0,
-    user: 0
-  }
-
-  const allUsers = await User.find({}).populate('blogs', fields)
-  res.json(allUsers)
-})
-
-usersRouter.get('/:id', async (req, res, next) => {
-  const id = req.params.id
+usersRouter.post('/', async (request, response, next) => {
   try {
-    const user = await User.findById(id)
-    if (user) {
-      res.json(user.toJSON())
-    } else {
-      res.status(404).end()
-    }
-  } catch(err) {
-    next(err)
-  }
-})
+    const body = request.body
 
-usersRouter.post('/', async (req, res, next) => {
-  const newUser = req.body
-  try {
-    if (!newUser.password)
+    if (!body.password) {
       throw { name: 'ValidationError', message: 'missing password' }
-    if (newUser.password.length <= 2)
+    } else if (body.password.length < 3) {
       throw { name: 'ValidationError', message: 'short password' }
+    }
 
-    const passwordHash = await bcrypt.hash(newUser.password, 10)
-    const userObject = new User({ ...newUser,  passwordHash })
-    const savedUser = await userObject.save()
-    res.json(savedUser)
-  } catch (err) {
-    next(err)
+    const saltRounds = 10
+    const passwordHash = await bcrypt.hash(body.password, saltRounds)
+
+    const user = new User({
+      username: body.username,
+      name: body.name,
+      passwordHash,
+    })
+
+    const savedUser = await user.save()
+    response.json(savedUser)
+  } catch (exception) {
+    next(exception)
   }
 })
 
-usersRouter.put('/:id', async (req, res, next) => {
-  const id = request.params.id
-  const userToUpdate = request.body
+usersRouter.get('/', async (request, response) => {
+  const users = await User.find({}).populate('blogs', { likes: 0, user: 0 })
+  response.json(users)
+})
+
+usersRouter.get('/:id', async (request, response, next) => {
   try {
-    const user = await User.findByIdAndUpdate(id, userToUpdate, { new: true })
-    res.json(user.toJSON())
-  } catch(err) {
-    next(err)
+    const user = await User.findById(request.params.id)
+    if (user) {
+      response.json(user.toJSON())
+    } else {
+      response.status(404).end()
+    }
+  } catch(exception) {
+    next(exception)
   }
 })
 
-usersRouter.delete('/:id', async (req, res, next) => {
-  const id = req.params.id
+usersRouter.put('/:id', async (request, response, next) => {
   try {
-    await User.findByIdAndRemove(id)
-    res.status(204).end()
-  } catch (err) {
-    next(err)
+    const returnedUser = await User
+      .findByIdAndUpdate(request.params.id, request.body, { new: true })
+    response.json(returnedUser.toJSON())
+  } catch(exception) {
+    next(exception)
+  }
+})
+
+usersRouter.delete('/:id', async (request, response, next) => {
+  try {
+    await User.findByIdAndRemove(request.params.id)
+    response.status(204).end()
+  } catch (exception) {
+    next(exception)
   }
 })
 
